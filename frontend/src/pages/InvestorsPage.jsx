@@ -1,12 +1,12 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { useNavigate } from "react-router-dom"
 import { 
   TrendingUp, 
   Users, 
   Star, 
   Building, 
   MapPin,
+  DollarSign,
   Award,
   Filter,
   Search
@@ -17,14 +17,12 @@ import { api } from '../services/api'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
-import { Link } from 'react-router-dom'
 
 const InvestorsPage = () => {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('leaderboard')
   const [selectedSector, setSelectedSector] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const navigate = useNavigate()
 
   const sectors = [
     'technology', 'healthcare', 'finance', 'education', 
@@ -141,16 +139,9 @@ const InvestorsPage = () => {
         </div>
       )}
 
-      {/* ✅ FIX: Link to user profile */}
-      <Link to={`/users/${investor._id}`}>
-        <Button
-        variant="outline"
-        className="w-full"
-        onClick={() => navigate(`/investors/${investor._id}`)} // 👈 Navigate
-      >
+      <Button variant="outline" className="w-full">
         View Profile
       </Button>
-      </Link>
     </motion.div>
   )
 
