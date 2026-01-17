@@ -19,6 +19,8 @@ import aiRoutes from "./routes/ai.js";
 
 import { authMiddleware } from "./middleware/auth.js";
 import { setupSocketHandlers } from "./controllers/socketController.js";
+import User from "./models/User.js";
+import Idea from "./models/Idea.js";
 
 dotenv.config();
 
@@ -87,6 +89,44 @@ app.use("/api/ai", authMiddleware, aiRoutes);
 // Health check
 app.get("/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
+});
+
+// Public stats endpoint for landing page
+app.get("/api/stats", async (req, res) => {
+  try {
+    const totalIdeas = await Idea.countDocuments({ status: "published" });
+    const totalUsers = await User.countDocuments();
+    const totalFunding = await Idea.aggregate([
+      { $match: { status: "published" } },
+      { $group: { _id: null, total: { $sum: "$currentFunding" } } }
+    ]);
+    
+    // Calculate success rate (ideas that reached at least 80% of goal)
+    const successfulIdeas = await Idea.countDocuments({
+      status: { $in: ["published", "funded"] },
+      $expr: { $gte: [{ $divide: ["$currentFunding", "$fundingGoal"] }, 0.8] }
+    });
+    
+    const successRate = totalIdeas > 0 
+      ? Math.round((successfulIdeas / totalIdeas) * 100) 
+      : 0;
+
+    res.json({
+      totalIdeas: totalIdeas || 0,
+      totalUsers: totalUsers || 0,
+      totalFunding: totalFunding[0]?.total || 0,
+      successRate: successRate || 0,
+    });
+  } catch (error) {
+    console.error("Get public stats error:", error);
+    // Return default values on error so landing page still works
+    res.json({
+      totalIdeas: 0,
+      totalUsers: 0,
+      totalFunding: 0,
+      successRate: 0,
+    });
+  }
 });
 
 // Socket.IO setup

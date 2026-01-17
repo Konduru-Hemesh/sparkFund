@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -15,8 +15,63 @@ import {
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import { useTheme } from "../context/ThemeContext";
+import axios from "axios";
 
 const HomePage = () => {
+  const [stats, setStats] = useState({
+    totalIdeas: 0,
+    totalUsers: 0,
+    totalFunding: 0,
+    successRate: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Fetch real stats from API
+    const fetchStats = async () => {
+      try {
+        const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+        const response = await axios.get(`${API_BASE_URL}/stats`, {
+          timeout: 5000,
+        });
+        
+        if (response.data) {
+          setStats({
+            totalIdeas: response.data.totalIdeas || 0,
+            totalUsers: response.data.totalUsers || 0,
+            totalFunding: response.data.totalFunding || 0,
+            successRate: response.data.successRate || 0,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch stats:", error);
+        // Keep default values if API fails
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  const formatNumber = (num) => {
+    if (num >= 1000000) {
+      return `${(num / 1000000).toFixed(1)}M+`;
+    } else if (num >= 1000) {
+      return `${(num / 1000).toFixed(1)}K+`;
+    }
+    return num > 0 ? `${num}+` : "0";
+  };
+
+  const formatCurrency = (amount) => {
+    if (amount >= 1000000) {
+      return `$${(amount / 1000000).toFixed(1)}M+`;
+    } else if (amount >= 1000) {
+      return `$${(amount / 1000).toFixed(1)}K+`;
+    }
+    return amount > 0 ? `$${amount}+` : "$0+";
+  };
+
   const features = [
     {
       icon: Lightbulb,
@@ -44,11 +99,12 @@ const HomePage = () => {
     },
   ];
 
-  const stats = [
-    { value: "10,000+", label: "Ideas Submitted" },
-    { value: "$50M+", label: "Funds Raised" },
-    { value: "5,000+", label: "Active Users" },
-    { value: "95%", label: "Success Rate" },
+  // Use real stats from API, fallback to defaults while loading
+  const statsData = [
+    { value: loading ? "..." : formatNumber(stats.totalIdeas), label: "Ideas Submitted" },
+    { value: loading ? "..." : formatCurrency(stats.totalFunding), label: "Funds Raised" },
+    { value: loading ? "..." : formatNumber(stats.totalUsers), label: "Active Users" },
+    { value: loading ? "..." : `${stats.successRate}%`, label: "Success Rate" },
   ];
 
   const testimonials = [
@@ -169,7 +225,7 @@ const HomePage = () => {
               transition={{ duration: 0.8, delay: 0.2 }}
               className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-16"
             >
-              {stats.map((stat, index) => (
+              {statsData.map((stat, index) => (
                 <div key={index} className="text-center">
                   <div className="text-3xl font-bold gradient-text">
                     {stat.value}

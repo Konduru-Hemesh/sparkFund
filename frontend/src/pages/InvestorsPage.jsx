@@ -39,10 +39,16 @@ const InvestorsPage = () => {
   )
 
   // Fetch sector-specific ideas for investor rooms
-  const { data: sectorData, isLoading: sectorLoading } = useQuery(
+  const { data: sectorData, isLoading: sectorLoading, error: sectorError } = useQuery(
     ['sectorRoom', selectedSector],
     () => api.investors.getSectorRoom(selectedSector, { page: 1, limit: 12 }),
-    { enabled: activeTab === 'rooms' && selectedSector && user?.userType === 'investor' }
+    { 
+      enabled: activeTab === 'rooms' && !!selectedSector && user?.userType === 'investor',
+      retry: 1,
+      onError: (error) => {
+        console.error('Sector room error:', error);
+      }
+    }
   )
 
   const investors = leaderboardData?.data?.investors || []
@@ -154,64 +160,78 @@ const InvestorsPage = () => {
     </motion.div>
   )
 
-  const SectorIdeaCard = ({ idea }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
-    >
-      <div className="flex items-start justify-between mb-3">
-        <h3 className="font-semibold text-gray-900 line-clamp-2 flex-1">
-          {idea.title}
-        </h3>
-        <div className="ml-3">
-          <div className="bg-primary-100 text-primary-800 px-2 py-1 rounded-full text-xs font-medium">
-            {idea.stage}
+  const SectorIdeaCard = ({ idea }) => {
+    // Safely handle missing data
+    if (!idea || !idea._id) {
+      return null;
+    }
+
+    const fundingPercentage = idea.fundingGoal > 0 
+      ? Math.min(100, ((idea.currentFunding || 0) / idea.fundingGoal) * 100) 
+      : 0;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+      >
+        <div className="flex items-start justify-between mb-3">
+          <h3 className="font-semibold text-gray-900 line-clamp-2 flex-1">
+            {idea.title || 'Untitled Idea'}
+          </h3>
+          <div className="ml-3">
+            <div className="bg-primary-100 text-primary-800 px-2 py-1 rounded-full text-xs font-medium">
+              {idea.stage || 'idea'}
+            </div>
           </div>
         </div>
-      </div>
 
-      <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-        {idea.description}
-      </p>
+        <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+          {idea.description || 'No description available'}
+        </p>
 
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center">
-          <img
-            src={idea.creator?.profilePicture || `https://ui-avatars.com/api/?name=${idea.creator?.name}&background=667eea&color=fff`}
-            alt={idea.creator?.name}
-            className="w-8 h-8 rounded-full object-cover mr-2"
-          />
-          <span className="text-sm text-gray-600">{idea.creator?.name}</span>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <img
+              src={idea.creator?.profilePicture || `https://ui-avatars.com/api/?name=${idea.creator?.name || 'User'}&background=667eea&color=fff`}
+              alt={idea.creator?.name || 'Creator'}
+              className="w-8 h-8 rounded-full object-cover mr-2"
+            />
+            <span className="text-sm text-gray-600">{idea.creator?.name || 'Anonymous'}</span>
+          </div>
+          <div className="flex items-center text-yellow-500">
+            <Star className="w-4 h-4 mr-1" />
+            <span className="text-sm font-medium">{idea.impactScore || 0}</span>
+          </div>
         </div>
-        <div className="flex items-center text-yellow-500">
-          <Star className="w-4 h-4 mr-1" />
-          <span className="text-sm font-medium">{idea.impactScore}</span>
-        </div>
-      </div>
 
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-medium text-gray-900">
-            {formatCurrency(idea.currentFunding)}
-          </span>
-          <span className="text-sm text-gray-500">
-            of {formatCurrency(idea.fundingGoal)}
-          </span>
+        <div className="mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-medium text-gray-900">
+              {formatCurrency(idea.currentFunding || 0)}
+            </span>
+            <span className="text-sm text-gray-500">
+              of {formatCurrency(idea.fundingGoal || 0)}
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="bg-primary-600 h-2 rounded-full"
+              style={{ width: `${fundingPercentage}%` }}
+            />
+          </div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div 
-            className="bg-primary-600 h-2 rounded-full"
-            style={{ width: `${Math.min(100, (idea.currentFunding / idea.fundingGoal) * 100)}%` }}
-          />
-        </div>
-      </div>
 
-      <Button className="w-full">
-        View & Invest
-      </Button>
-    </motion.div>
-  )
+        <Button 
+          className="w-full"
+          onClick={() => navigate(`/ideas/${idea._id}`)}
+        >
+          View & Invest
+        </Button>
+      </motion.div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -349,7 +369,7 @@ const InvestorsPage = () => {
                     {selectedSector.charAt(0).toUpperCase() + selectedSector.slice(1)} Ideas
                   </h2>
                   <div className="text-sm text-gray-500">
-                    {sectorIdeas.length} ideas available
+                    {sectorLoading ? 'Loading...' : `${sectorIdeas?.length || 0} ideas available`}
                   </div>
                 </div>
 
@@ -357,11 +377,31 @@ const InvestorsPage = () => {
                   <div className="flex justify-center py-12">
                     <LoadingSpinner size="lg" />
                   </div>
-                ) : sectorIdeas.length > 0 ? (
+                ) : sectorError ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <TrendingUp className="w-8 h-8 text-red-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Error Loading Ideas
+                    </h3>
+                    <p className="text-gray-600 mb-4">
+                      {sectorError?.response?.data?.message || 'Failed to load ideas. Please try again.'}
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => window.location.reload()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                ) : sectorIdeas && sectorIdeas.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {sectorIdeas.map((idea) => (
-                      <SectorIdeaCard key={idea._id} idea={idea} />
-                    ))}
+                    {sectorIdeas
+                      .filter(idea => idea && idea._id)
+                      .map((idea) => (
+                        <SectorIdeaCard key={idea._id} idea={idea} />
+                      ))}
                   </div>
                 ) : (
                   <div className="text-center py-12">

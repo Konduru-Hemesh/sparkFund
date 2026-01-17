@@ -35,19 +35,53 @@ const AIAssistantPage = () => {
   // AI Chat mutation
   const chatMutation = useMutation((data) => api.ai.chat(data), {
     onSuccess: (response) => {
+      const responseText = response.data?.response;
+      
+      if (!responseText || responseText.trim() === "") {
+        const errorMessage = {
+          id: Date.now() + 1,
+          content: "The AI assistant returned an empty response. Please try again with a different question.",
+          sender: "ai",
+          timestamp: new Date(),
+          isError: true,
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+        return;
+      }
+
       const aiMessage = {
         id: Date.now() + 1,
-        content: response.data.response,
+        content: responseText,
         sender: "ai",
         timestamp: new Date(),
-        context: response.data.context,
+        context: response.data.context || context,
       };
       setMessages((prev) => [...prev, aiMessage]);
     },
     onError: (error) => {
+      let errorContent = "Sorry, I encountered an error. Please try again.";
+      
+      // Extract more specific error messages
+      if (error.response?.data?.error) {
+        const errorMsg = error.response.data.error;
+        if (errorMsg.includes("API key") || errorMsg.includes("authentication")) {
+          errorContent = "AI service configuration error. Please contact the administrator.";
+        } else if (errorMsg.includes("rate limit")) {
+          errorContent = "Too many requests. Please wait a moment and try again.";
+        } else if (errorMsg.includes("unavailable")) {
+          errorContent = "AI service is temporarily unavailable. Please try again in a few moments.";
+        } else {
+          errorContent = errorMsg;
+        }
+      } else if (error.message) {
+        if (error.message.includes("timeout") || error.message.includes("Network")) {
+          errorContent = "Request timeout. The AI is taking too long to respond. Please try again.";
+        }
+      }
+
       const errorMessage = {
         id: Date.now() + 1,
-        content: "Sorry, I encountered an error. Please try again.",
+        content: errorContent,
         sender: "ai",
         timestamp: new Date(),
         isError: true,
